@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greensboro Events Calendar</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Greensboro, NC Events Calendar</h1>
+            <div class="controls">
+                <button id="refreshBtn" class="btn btn-primary">Refresh Events</button>
+                <div class="event-count">
+                    <span id="eventCount">Loading events...</span>
+                </div>
+            </div>
+        </header>
+        
+        <div class="calendar-container">
+            <div id="calendar"></div>
+        </div>
+        
+        <div class="legend">
+            <h3>Event Types</h3>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <span class="legend-color concert"></span>
+                    <span>Concerts</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color meetup"></span>
+                    <span>Meetups</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color festival"></span>
+                    <span>Festivals</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color other"></span>
+                    <span>Other Events</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Details Modal -->
+    <div id="eventModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle"></h2>
+            <div id="modalContent">
+                <p><strong>Date:</strong> <span id="modalDate"></span></p>
+                <p><strong>Location:</strong> <span id="modalLocation"></span></p>
+                <p><strong>Type:</strong> <span id="modalType"></span></p>
+                <p><strong>Description:</strong> <span id="modalDescription"></span></p>
+                <div id="modalUrl"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            const modal = document.getElementById('eventModal');
+            const closeModal = document.getElementsByClassName('close')[0];
+            const refreshBtn = document.getElementById('refreshBtn');
+            const eventCount = document.getElementById('eventCount');
+
+            let calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,listWeek'
+                },
+                events: '/api/events',
+                eventClick: function(info) {
+                    showEventDetails(info.event);
+                },
+                eventClassNames: function(info) {
+                    const eventType = info.event.extendedProps.type?.toLowerCase() || 'other';
+                    return ['event-' + eventType];
+                },
+                loading: function(bool) {
+                    if (!bool) {
+                        updateEventCount();
+                    }
+                }
+            });
+
+            calendar.render();
+
+            function showEventDetails(event) {
+                document.getElementById('modalTitle').textContent = event.title;
+                document.getElementById('modalDate').textContent = event.start.toLocaleDateString();
+                document.getElementById('modalLocation').textContent = event.extendedProps.location || 'Not specified';
+                document.getElementById('modalType').textContent = event.extendedProps.type || 'Unknown';
+                document.getElementById('modalDescription').textContent = event.extendedProps.description || 'No description available';
+                
+                const urlElement = document.getElementById('modalUrl');
+                if (event.extendedProps.url) {
+                    urlElement.innerHTML = `<a href="${event.extendedProps.url}" target="_blank" class="btn btn-link">View on Facebook</a>`;
+                } else {
+                    urlElement.innerHTML = '';
+                }
+                
+                modal.style.display = 'block';
+            }
+
+            function updateEventCount() {
+                fetch('/api/events')
+                    .then(response => response.json())
+                    .then(events => {
+                        eventCount.textContent = `${events.length} events loaded`;
+                    })
+                    .catch(error => {
+                        eventCount.textContent = 'Error loading events';
+                        console.error('Error:', error);
+                    });
+            }
+
+            // Refresh events
+            refreshBtn.addEventListener('click', function() {
+                refreshBtn.textContent = 'Refreshing...';
+                refreshBtn.disabled = true;
+                
+                fetch('/api/refresh')
+                    .then(response => response.json())
+                    .then(data => {
+                        calendar.refetchEvents();
+                        refreshBtn.textContent = 'Refresh Events';
+                        refreshBtn.disabled = false;
+                    })
+                    .catch(error => {
+                        console.error('Error refreshing events:', error);
+                        refreshBtn.textContent = 'Refresh Events';
+                        refreshBtn.disabled = false;
+                    });
+            });
+
+            // Modal controls
+            closeModal.onclick = function() {
+                modal.style.display = 'none';
+            }
+
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+
+            // Initial event count update
+            updateEventCount();
+        });
+    </script>
+</body>
+</html>
